@@ -1,6 +1,7 @@
 const int cacheSize = 50;
 const int analogInPins = 16;
 
+const byte commandControlByte = 0xff;
 const byte monitorInCommand = 0x01;
 
 byte commandCache[cacheSize];
@@ -49,27 +50,34 @@ void flushBuffer()
 }
 
 void interpretCommandCache()
-{
-  Serial.write(0xfe);
-  
-  if(lastWrittenPosition != -1)
+{  
+  if(lastWrittenPosition > 0)
   {
-    switch(commandCache[0])
+    //Check for control byte
+    if(commandCache[0] == commandControlByte)
     {
-      case monitorInCommand:
-        if(lastWrittenPosition > 0)
-        {
-          int pin = commandCache[1];
-          monitoredAnalogInputs[pin] = true;
-          flushCommandCache(2);
-        }else{
-          return;
-        }
-        break;
-        
-      case 0x03:
-        
-        break;
+      switch(commandCache[1])
+      {
+        case monitorInCommand:
+          if(lastWrittenPosition > 0)
+          {
+            int pin = commandCache[2];
+            monitoredAnalogInputs[pin] = true;
+            flushCommandCache(3);
+          }else{
+            return;
+          }
+          break;
+          
+        case 0x03:
+          
+          break;
+      }
+    }
+    else
+    {
+      //Flush first byte of queue if it does not match control byte
+      flushCommandCache(1);
     }
   }
 }
