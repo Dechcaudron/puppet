@@ -2,7 +2,6 @@ const int cacheSize = 50;
 const int analogInPins = 16;
 
 const byte commandControlByte = 0xff;
-const byte monitorInCommand = 0x01;
 
 byte commandCache[cacheSize];
 int lastWrittenPosition = -1;
@@ -18,10 +17,47 @@ void setup()
   {
     monitoredAnalogInputs[i] = false;
   }
+  
+  waitForPuppetteerReady();
+}
+
+void waitForPuppetteerReady()
+{
+  const byte puppetteerReadyInCommand = 0x00;
+   
+  do
+  {
+    
+    readSerialInput();
+    if(lastWrittenPosition >= 2)
+    {
+      if(commandCache[0] == commandControlByte && commandCache[1] == puppetteerReadyInCommand && commandCache[2] == puppetteerReadyInCommand)
+      {
+        sendPuppetReadyCommand();
+        flushCommandCache(3);
+        break;
+      }else
+      {
+        flushCommandCache(1);
+      }
+    }
+    
+    delay(500);  
+  }while(true);
+  
+}
+
+void sendPuppetReadyCommand()
+{
+  const byte puppetReadyCommand = 0x00;
+  
+  Serial.write(commandControlByte);
+  Serial.write(puppetReadyCommand);
+  Serial.write(puppetReadyCommand);
 }
 
 void loop()
-{
+{  
   readSerialInput();
   
   //flushBuffer();
@@ -50,7 +86,10 @@ void flushBuffer()
 }
 
 void interpretCommandCache()
-{  
+{
+  const byte startMonitoringInCommand = 0x01;
+  const byte stopMonitoringInCommand = 0x02;
+  
   if(lastWrittenPosition > 0)
   {
     //Check for control byte
@@ -58,14 +97,24 @@ void interpretCommandCache()
     {
       switch(commandCache[1])
       {
-        case monitorInCommand:
-          if(lastWrittenPosition > 0)
+        case startMonitoringInCommand:
+        Serial.write(0xff);
+          if(lastWrittenPosition >= 2)
           {
             int pin = commandCache[2];
             monitoredAnalogInputs[pin] = true;
             flushCommandCache(3);
           }else{
             return;
+          }
+          break;
+          
+        case stopMonitoringInCommand:
+          if(lastWrittenPosition >= 2)
+          {
+            int pin = commandCache[2];
+            monitoredAnalogInputs[pin] = false;
+            flushCommandCache(3);
           }
           break;
           
