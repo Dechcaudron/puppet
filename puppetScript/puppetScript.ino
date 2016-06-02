@@ -89,6 +89,7 @@ void interpretCommandCache()
 {
   const byte startMonitoringInCommand = 0x01;
   const byte stopMonitoringInCommand = 0x02;
+  const byte setPWMInCommand = 0x04;
   
   if(lastWrittenPosition > 0)
   {
@@ -118,7 +119,16 @@ void interpretCommandCache()
           }
           break;
           
-        case 0x03:
+        case setPWMInCommand:
+          if(lastWrittenPosition >= 3)
+          {
+            int pin = commandCache[2];
+            int value = commandCache[3];
+            
+            analogWrite(pin, value);
+            
+            flushCommandCache(4);
+          }
           
           break;
       }
