@@ -99,7 +99,6 @@ void interpretCommandCache()
       switch(commandCache[1])
       {
         case startMonitoringInCommand:
-        Serial.write(0xff);
           if(lastWrittenPosition >= 2)
           {
             int pin = commandCache[2];
