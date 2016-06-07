@@ -13,17 +13,22 @@ void setup()
   Serial.begin(9600);
   
   //Init monitoredAnalogInputs
+  resetAnalogInputMonitors();
+  
+  waitForPuppeteerReady();
+}
+
+void resetAnalogInputMonitors()
+{
   for(int i=0; i<analogInPins; ++i)
   {
     monitoredAnalogInputs[i] = false;
   }
-  
-  waitForPuppetteerReady();
 }
 
-void waitForPuppetteerReady()
+void waitForPuppeteerReady()
 {
-  const byte puppetteerReadyInCommand = 0x00;
+  const byte puppeteerReadyInCommand = 0x00;
    
   do
   {
@@ -31,7 +36,7 @@ void waitForPuppetteerReady()
     readSerialInput();
     if(lastWrittenPosition >= 2)
     {
-      if(commandCache[0] == commandControlByte && commandCache[1] == puppetteerReadyInCommand && commandCache[2] == puppetteerReadyInCommand)
+      if(commandCache[0] == commandControlByte && commandCache[1] == puppeteerReadyInCommand && commandCache[2] == puppeteerReadyInCommand)
       {
         sendPuppetReadyCommand();
         flushCommandCache(3);
@@ -90,6 +95,7 @@ void interpretCommandCache()
   const byte startMonitoringInCommand = 0x01;
   const byte stopMonitoringInCommand = 0x02;
   const byte setPWMInCommand = 0x04;
+  const byte puppeteerClosedCommand = 0x99;
   
   if(lastWrittenPosition > 0)
   {
@@ -128,8 +134,17 @@ void interpretCommandCache()
             
             flushCommandCache(4);
           }
-          
           break;
+          
+        case puppeteerClosedCommand:
+          flushCommandCache(2);
+          
+          //Stop all monitors
+          resetAnalogInputMonitors();
+          
+          //Wait until explicit puppeteer connection again
+          waitForPuppeteerReady();
+        
       }
     }
     else
