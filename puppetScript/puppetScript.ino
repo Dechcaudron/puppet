@@ -6,6 +6,10 @@ const byte commandControlByte = 0xff;
 byte commandCache[cacheSize];
 int lastWrittenPosition = -1;
 
+const int internalIntVarsNumber = 2;
+int internalIntVars[internalIntVarsNumber];
+boolean monitoredInternalIntVars[internalIntVarsNumber];
+
 boolean monitoredAnalogInputs[analogInPins];
 
 void setup()
@@ -16,6 +20,16 @@ void setup()
   resetAnalogInputMonitors();
   
   waitForPuppeteerReady();
+}
+
+void resetInternalVars()
+{
+  //Int
+  for(int i=0; i<internalIntVarsNumber; ++i)
+  {
+    internalIntVars[i]=0;
+    monitoredInternalIntVars[i]=false;
+  }
 }
 
 void resetAnalogInputMonitors()
@@ -70,6 +84,8 @@ void loop()
   interpretCommandCache();
   
   monitorAnalogInputs();
+  
+  monitorInternalVars();
   
   delay(500);
 }
@@ -183,11 +199,35 @@ void monitorAnalogInputs()
   }
 }
 
+const byte internalVarMonitorOutCommand = 0x02;
+
+void monitorInternalVars()
+{
+  //Int
+  for(int i=0; i<internalIntVarsNumber; ++i)
+  {
+    if(monitoredInternalIntVars[i])
+    {
+      sendInternalIntVar(internalIntVars[i]);
+    }
+  }
+}
+
 void sendAnalogRead(int pin, int value)
 {
   Serial.write(0xff);
   Serial.write(0x1);
   Serial.write(byte(pin));
+  Serial.write(highByte(value));
+  Serial.write(lowByte(value));
+}
+
+void sendInternalIntVar(int var, int value)
+{
+  const byte intType = 0x00;
+  Serial.write(0xff);
+  Serial.write(internalVarMonitorOutCommand);
+  Serial.write(intType);
   Serial.write(highByte(value));
   Serial.write(lowByte(value));
 }
