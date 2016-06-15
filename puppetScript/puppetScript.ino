@@ -6,9 +6,11 @@ const byte commandControlByte = 0xff;
 byte commandCache[cacheSize];
 int lastWrittenPosition = -1;
 
-const int internalIntVarsNumber = 2;
-int internalIntVars[internalIntVarsNumber];
-boolean monitoredInternalIntVars[internalIntVarsNumber];
+//Note: Short is int for arduino
+const byte shortVarTypeCode = 0x00;
+const int shortVarsNumber = 2;
+int shortVars[shortVarsNumber];
+boolean monitoredShortVars[shortVarsNumber];
 
 boolean monitoredAnalogInputs[analogInPins];
 
@@ -19,16 +21,18 @@ void setup()
   //Init monitoredAnalogInputs
   resetAnalogInputMonitors();
   
+  resetInternalVars();
+  resetVarMonitors();
+  
   waitForPuppeteerReady();
 }
 
 void resetInternalVars()
 {
-  //Int
-  for(int i=0; i<internalIntVarsNumber; ++i)
+  //Short
+  for(int i=0; i<shortVarsNumber; ++i)
   {
-    internalIntVars[i]=0;
-    monitoredInternalIntVars[i]=false;
+    shortVars[i]=0;
   }
 }
 
@@ -37,6 +41,15 @@ void resetAnalogInputMonitors()
   for(int i=0; i<analogInPins; ++i)
   {
     monitoredAnalogInputs[i] = false;
+  }
+}
+
+void resetVarMonitors()
+{
+  //Short
+  for(int i=0; i<shortVarsNumber; ++i)
+  {
+    monitoredShortVars[i]=false;
   }
 }
 
@@ -85,7 +98,9 @@ void loop()
   
   monitorAnalogInputs();
   
-  monitorInternalVars();
+  monitorVars();
+  
+  shortVars[0]++;
   
   delay(500);
 }
@@ -111,6 +126,8 @@ void interpretCommandCache()
   const byte startMonitoringInCommand = 0x01;
   const byte stopMonitoringInCommand = 0x02;
   const byte setPWMInCommand = 0x04;
+  const byte startMonitoringVarInCommand = 0x05;
+  const byte stopMonitoringVarInCommand = 0x06;
   const byte puppeteerClosedCommand = 0x99;
   
   if(lastWrittenPosition > 0)
@@ -152,11 +169,40 @@ void interpretCommandCache()
           }
           break;
           
+        case startMonitoringVarInCommand:
+          if(lastWrittenPosition >= 3)
+          {
+            if(!startMonitoringVar(commandCache[2], commandCache[3]))
+            {
+              Serial.write(commandControlByte);
+              Serial.write(0xfe);
+              //TODO: send error
+            }
+            
+            flushCommandCache(4);
+          }
+          break;
+          
+        case stopMonitoringVarInCommand:
+          if(lastWrittenPosition >= 3)
+          {
+            if(!stopMonitoringVar(commandCache[2], commandCache[3]))
+            {
+              Serial.write(commandControlByte);
+              Serial.write(0xfe);
+              //TODO: send error
+            }
+            
+            flushCommandCache(4);
+          }
+          break;
+          
         case puppeteerClosedCommand:
           flushCommandCache(2);
           
           //Stop all monitors
           resetAnalogInputMonitors();
+          resetVarMonitors();
           
           //Wait until explicit puppeteer connection again
           waitForPuppeteerReady();
@@ -199,35 +245,64 @@ void monitorAnalogInputs()
   }
 }
 
-const byte internalVarMonitorOutCommand = 0x02;
+boolean startMonitoringVar(byte type, int varPosition)
+{
+  return changeInternalVarMonitorStatus(type, varPosition, true);
+}
 
-void monitorInternalVars()
+boolean stopMonitoringVar(byte type, int varPosition)
+{
+  return changeInternalVarMonitorStatus(type, varPosition, false);
+}
+
+boolean changeInternalVarMonitorStatus(byte type, int varPosition, boolean newStatus)
+{
+  switch(type)
+  {
+    case shortVarTypeCode:
+      if(varPosition < shortVarsNumber)
+      {
+        monitoredShortVars[varPosition] = newStatus;
+        return true;
+      }
+      return false;
+      
+     default:
+       return false;
+  }
+}
+
+void monitorVars()
 {
   //Int
-  for(int i=0; i<internalIntVarsNumber; ++i)
+  for(int i=0; i<shortVarsNumber; ++i)
   {
-    if(monitoredInternalIntVars[i])
+    if(monitoredShortVars[i])
     {
-      sendInternalIntVar(internalIntVars[i]);
+      sendShortVar(i, shortVars[i]);
     }
   }
 }
 
-void sendAnalogRead(int pin, int value)
+void sendAnalogRead(byte pin, int value)
 {
-  Serial.write(0xff);
+  Serial.write(commandControlByte);
   Serial.write(0x1);
-  Serial.write(byte(pin));
+  Serial.write(pin);
   Serial.write(highByte(value));
   Serial.write(lowByte(value));
 }
 
-void sendInternalIntVar(int var, int value)
+const byte varMonitorOutCommand = 0x02;
+
+void sendShortVar(byte index, int value)
 {
-  const byte intType = 0x00;
-  Serial.write(0xff);
-  Serial.write(internalVarMonitorOutCommand);
-  Serial.write(intType);
+  const byte shortType = 0x00;
+  
+  Serial.write(commandControlByte);
+  Serial.write(varMonitorOutCommand);
+  Serial.write(shortType);
+  Serial.write(index);
   Serial.write(highByte(value));
   Serial.write(lowByte(value));
 }
